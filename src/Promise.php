@@ -6,6 +6,8 @@ namespace Pokio;
 
 use Closure;
 use Pokio\Contracts\Future;
+use Pokio\Exceptions\FutureAlreadyAwaited;
+use Pokio\Exceptions\FutureCancelled;
 use Pokio\Exceptions\PromiseAlreadyStarted;
 use Pokio\Runtime\Sync\SyncFuture;
 use Pokio\Support\Reflection;
@@ -29,6 +31,11 @@ final class Promise
      * @var Future<TReturn>|null
      */
     private ?Future $future = null;
+
+    /**
+     * Whether the promise was cancelled before being deferred.
+     */
+    private bool $cancelled = false;
 
     /**
      * Creates a new promise instance.
@@ -76,6 +83,14 @@ final class Promise
      */
     public function defer(): void
     {
+        if ($this->cancelled && $this->future === null) {
+            // If cancelled before deferring, create a future that will
+            // immediately throw when awaited.
+            $this->future = new SyncFuture(static fn () => throw new FutureCancelled());
+
+            return;
+        }
+
         $this->future ??= Kernel::instance()->runtime()->defer($this->callback);
     }
 
@@ -91,6 +106,26 @@ final class Promise
         assert($this->future instanceof Future);
 
         return $this->future->await();
+    }
+
+    /**
+     * Cancels the promise or the underlying future.
+     *
+     * @return bool Whether the promise/future was successfully cancelled
+     */
+    public function cancel(): bool
+    {
+        if ($this->future instanceof Future) {
+            return $this->future->cancel();
+        }
+
+        if ($this->cancelled) {
+            return false;
+        }
+
+        $this->cancelled = true;
+
+        return true;
     }
 
     /**

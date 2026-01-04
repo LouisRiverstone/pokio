@@ -24,6 +24,11 @@ final class SyncFuture implements Future
     private bool $awaited = false;
 
     /**
+     * Whether the future has been cancelled.
+     */
+    private bool $cancelled = false;
+
+    /**
      * Creates a new sync result instance.
      *
      * @param  Closure(): TResult  $callback
@@ -40,6 +45,10 @@ final class SyncFuture implements Future
      */
     public function await(): mixed
     {
+        if ($this->cancelled) {
+            throw new \Pokio\Exceptions\FutureCancelled();
+        }
+
         if ($this->awaited) {
             throw new FutureAlreadyAwaited();
         }
@@ -53,6 +62,22 @@ final class SyncFuture implements Future
         }
 
         return $result;
+    }
+
+    /**
+     * Cancels the future.
+     *
+     * @return bool Whether the future was successfully cancelled
+     */
+    public function cancel(): bool
+    {
+        if ($this->awaited || $this->cancelled) {
+            return false;
+        }
+
+        $this->cancelled = true;
+
+        return true;
     }
 
     /**

@@ -19,6 +19,13 @@ interface Future
     public function await(): mixed;
 
     /**
+     * Cancels the asynchronous operation.
+     *
+     * @return bool Whether the operation was successfully cancelled
+     */
+    public function cancel(): bool;
+
+    /**
      * Whether the result has been awaited.
      */
     public function awaited(): bool;

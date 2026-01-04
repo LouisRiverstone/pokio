@@ -7,6 +7,7 @@ namespace Pokio\Runtime\Fork;
 use Closure;
 use Pokio\Contracts\Future;
 use Pokio\Exceptions\FutureAlreadyAwaited;
+use Pokio\Exceptions\FutureCancelled;
 
 /**
  * Represents the result of a forked process.
@@ -23,6 +24,11 @@ final class ForkFuture implements Future
      * Whether the result has been awaited.
      */
     private bool $awaited = false;
+
+    /**
+     * Whether the future has been cancelled.
+     */
+    private bool $cancelled = false;
 
     /**
      * Creates a new fork result instance.
@@ -42,6 +48,10 @@ final class ForkFuture implements Future
      */
     public function await(): mixed
     {
+        if ($this->cancelled) {
+            throw new FutureCancelled();
+        }
+
         if ($this->awaited) {
             throw new FutureAlreadyAwaited();
         }
@@ -60,6 +70,34 @@ final class ForkFuture implements Future
         $result = unserialize($this->memory->pop());
 
         return $result;
+    }
+
+    /**
+     * Cancels the forked process running the future.
+     *
+     * @return bool Whether the process was signaled
+     */
+    public function cancel(): bool
+    {
+        if ($this->awaited || $this->cancelled) {
+            return false;
+        }
+
+        // If posix_kill is available, attempt to terminate the child process.
+        if (function_exists('posix_kill')) {
+            $sent = posix_kill($this->pid, SIGTERM);
+
+            if (! $sent) {
+                // Signal failed; surface an explicit exception for callers
+                throw new \Pokio\Exceptions\FutureCancellationFailed();
+            }
+        } else {
+            $sent = false;
+        }
+
+        $this->cancelled = true;
+
+        return (bool) $sent;
     }
 
     /**

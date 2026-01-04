@@ -87,7 +87,11 @@ final class UnwaitedFutureManager
         $queue = $this->queue;
 
         foreach ($queue as $future) {
-            $future->await();
+            try {
+                $future->await();
+            } catch (\Throwable $_) {
+                // Ignore failures (for example, a cancelled future)
+            }
 
             $this->unschedule($future);
         }
